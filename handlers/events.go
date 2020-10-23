@@ -177,6 +177,16 @@ func VerificationReaction(s *discordgo.Session, e *discordgo.MessageReactionAdd)
 		return
 	}
 
+	perms, err := s.UserChannelPermissions(e.UserID, e.ChannelID)
+	if err != nil {
+		eventReplyDel(s, e.ChannelID, fmt.Sprintf("Failed to check your perms.\n```%v```", err), 5)
+	}
+
+	if perms&discordgo.PermissionManageRoles != discordgo.PermissionManageRoles {
+		eventReplyDel(s, e.ChannelID, "You need to have Manage Roles perms to approve/deny this request.", 5)
+		return
+	}
+
 	// Get guild settings
 	guildSettings, err := db.GetGuildSettings(e.GuildID)
 	if err != nil {
