@@ -39,6 +39,16 @@ func main() {
 		return
 	}
 
+	// Event handlers for Reactive Roles
+	dg.AddHandler(handlers.ReactionRoleCheck)
+	dg.AddHandler(handlers.VerificationReaction)
+	dg.AddHandler(handlers.GuildRoleUpdate)
+	dg.AddHandler(handlers.GuildRoleDelete)
+
+	// Dev events
+	dg.AddHandler(handlers.GuildCreate)
+	dg.AddHandler(handlers.GuildDelete)
+
 	// Router
 	router := exrouter.New()
 
@@ -48,7 +58,10 @@ func main() {
 		r.Cat("setup")
 
 		// Set cooldown
-		r.Use(exmiddleware.UserCooldown(time.Second*10, exmiddleware.CatchReply("This command is on cooldown...")))
+		r.Use(
+			exmiddleware.UserCooldown(time.Second*10, exmiddleware.CatchReply("This command is on cooldown...")),
+			modCheck,
+		)
 
 		// Commands
 		r.On("setup", (handlers.SetupHandler)).Desc("Setup Reactive Roles.")
@@ -110,6 +123,22 @@ func main() {
 		// Close DB connection
 		db.CloseDB()
 	}()
+}
+
+func modCheck(fn exrouter.HandlerFunc) exrouter.HandlerFunc {
+	return func(ctx *exrouter.Context) {
+		userPerms, err := ctx.Ses.UserChannelPermissions(ctx.Msg.Author.ID, ctx.Msg.ChannelID)
+		if err != nil {
+			log.Printf("failed to check user perms: %v", err)
+		}
+
+		if userPerms&discordgo.PermissionManageRoles == discordgo.PermissionManageRoles {
+			fn(ctx)
+			return
+		}
+
+		ctx.Reply("You don't have permission to use this command")
+	}
 }
 
 // Loads a discord token from filename

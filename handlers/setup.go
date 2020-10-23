@@ -112,7 +112,11 @@ func AddHandler(ctx *exrouter.Context) {
 		replyDel(ctx, "Failed to update the Reative Roles message.", 15)
 		return
 	}
-	ctx.Reply(fmt.Sprintf("Done! `%v` is now a Reactive Role in this channel.", role.Name))
+
+	// Add reaction
+	ctx.Ses.MessageReactionAdd(ctx.Msg.ChannelID, channel.MessageID, emojiArg)
+
+	replyDel(ctx, fmt.Sprintf("Done! `%v` is now a Reactive Role in this channel.", role.Name), 15)
 }
 
 // RemoveHandler - just a test
@@ -186,6 +190,14 @@ func RemoveHandler(ctx *exrouter.Context) {
 
 // SetupHandler - just a test
 func SetupHandler(ctx *exrouter.Context) {
+	// Check bot perms
+	if ok := permsCheck(ctx, ctx.Msg.ChannelID); !ok {
+		replyDel(ctx, "I do not have proper perms in this channel for Reactive Roles to work.", 15)
+		return
+	}
+
+	// Elevate Bot role
+
 	// Delete messae
 	ctx.Ses.ChannelMessageDelete(ctx.Msg.ChannelID, ctx.Msg.ID)
 
@@ -196,10 +208,45 @@ func SetupHandler(ctx *exrouter.Context) {
 		return
 	}
 
-	// Check bot perms
-	if ok := permsCheck(ctx); !ok {
-		replyDel(ctx, "I do not have proper perms in this channel for Reactive Roles to work.", 15)
-		return
+	// Setup guild verification channel
+	if guildSettings.VerificationChan == "" {
+		// Get verification channel
+		verArg := ctx.Args.Get(1)
+		if verArg == "" {
+			replyDel(ctx, "Make sure to specify the #verification channel you would like to use as the first argument after this command.\nYour verification channel needs to be visible to the moderators only.", 15)
+			return
+		}
+
+		// Regex to get role ID
+		re := regexp.MustCompile(`[<#>]`)
+		verChanID := re.ReplaceAllString(verArg, "")
+
+		// Find the channel privided
+		guildChans, err := ctx.Ses.GuildChannels(ctx.Msg.GuildID)
+		if err != nil {
+			replyDel(ctx, "I was not able to get a list of channels on this server.", 15)
+			return
+		}
+		for _, c := range guildChans {
+			if c.ID == verChanID {
+				guildSettings.VerificationChan = c.ID
+				break
+			}
+		}
+
+		// Channel not found/not valid
+		if guildSettings.VerificationChan == "" {
+			replyDel(ctx, "I was not able to find that channel on this server.", 15)
+			return
+		}
+
+		// Check verification channel perms
+		permsBool := permsCheck(ctx, verChanID)
+		if !permsBool {
+			replyDel(ctx, "It looks like I do not have proper perms in the verification channel provided.", 15)
+			return
+		}
+
 	}
 
 	// Check if this channel is already enabled
@@ -250,7 +297,7 @@ func updateReactiveMsg(ctx *exrouter.Context, roles map[string]*db.Role, cid str
 
 	var i int
 	for _, r := range roles {
-		newMsg = newMsg + fmt.Sprintf("%v - %v\n", r.Reaction, r.Name)
+		newMsg = newMsg + fmt.Sprintf("%v - %v", r.Reaction, r.Name)
 		// Add newline unless it's last line
 		if i < len(roles) {
 			newMsg = newMsg + "\n"
@@ -263,9 +310,9 @@ func updateReactiveMsg(ctx *exrouter.Context, roles map[string]*db.Role, cid str
 	return err
 }
 
-func permsCheck(ctx *exrouter.Context) bool {
+func permsCheck(ctx *exrouter.Context, chanID string) bool {
 	// Check bot perms
-	perms, err := ctx.Ses.UserChannelPermissions(ctx.Ses.State.User.ID, ctx.Msg.ChannelID)
+	perms, err := ctx.Ses.UserChannelPermissions(ctx.Ses.State.User.ID, chanID)
 	if err != nil || perms < config.PermsCode {
 		log.Print(err)
 		return false
