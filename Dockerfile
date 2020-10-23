@@ -8,7 +8,7 @@ WORKDIR /src
 COPY . .
 
 # Mount volume for DB
-VOLUME ["/botto/data", "/data"]
+VOLUME ["~/botto-data/data", "/data"]
 
 # Run the command inside your image filesystem.
 RUN go build -o app
