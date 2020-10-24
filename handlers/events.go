@@ -179,7 +179,7 @@ func ReactionRoleCheck(s *discordgo.Session, e *discordgo.MessageReactionAdd) {
 		userData.RoleRequests[e.ChannelID][role.ID] = newReq
 		err = db.UpdateUserData(userData)
 		if err != nil {
-			log.Print("failed to update user request status")
+			log.Printf("failed to update user request status: %v", err)
 		}
 
 		// Add Reactions
