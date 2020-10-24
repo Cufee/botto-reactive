@@ -69,15 +69,6 @@ func main() {
 		r.On("remove", (handlers.RemoveHandler)).Desc("Remove a role from the RR list.")
 		r.On("sban", (handlers.SoftBanHandler)).Desc("Soft ban a user.")
 		r.On("sunban", (handlers.SoftUnbanHandler)).Desc("Remove a soft ban.")
-	})
-
-	// Help command
-	router.Group(func(r *exrouter.Route) {
-		// Category
-		r.Cat("help")
-
-		// Set cooldown
-		r.Use(exmiddleware.UserCooldown(time.Second*5, exmiddleware.CatchReply("This command is on cooldown...")))
 
 		// Help command
 		r.Default = r.On("help", func(ctx *exrouter.Context) {
