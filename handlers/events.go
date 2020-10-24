@@ -61,6 +61,7 @@ func ReactionRoleCheck(s *discordgo.Session, e *discordgo.MessageReactionAdd) {
 					// User DMs closed
 					return
 				}
+				s.MessageReactionRemove(e.ChannelID, e.MessageID, e.Emoji.APIName(), e.UserID)
 				s.ChannelMessageSend(dmChan.ID, fmt.Sprintf("You already have the %s role.", role.Name))
 				return
 			}
@@ -91,9 +92,11 @@ func ReactionRoleCheck(s *discordgo.Session, e *discordgo.MessageReactionAdd) {
 		return
 	}
 
-	// Check if user has a pending role request
-	hasActiveRequest := userData.RoleRequests[e.ChannelID][role.ID].Active
-	if hasActiveRequest {
+	// Check if user has a valid pending role request
+	activeReq := userData.RoleRequests[e.ChannelID][role.ID]
+	_, err = s.ChannelMessage(guildSettings.VerificationChan, activeReq.VerificationID)
+
+	if activeReq.Active && err == nil {
 		validReaction = false
 		dmChan, err := s.UserChannelCreate(e.UserID)
 		if err != nil {
@@ -114,6 +117,18 @@ func ReactionRoleCheck(s *discordgo.Session, e *discordgo.MessageReactionAdd) {
 		return
 
 	case "manual":
+		// Check for nil map
+		if userData.IsSoftBanned == nil {
+			userData.IsSoftBanned = make(map[string]bool)
+			userData.IsSoftBanned[e.GuildID] = false
+		}
+
+		// Check if user is soft banned
+		if userData.IsSoftBanned[e.GuildID] {
+			log.Printf("%v - user is soft banned", e.UserID)
+			return
+		}
+
 		// Get channel info
 		channel, err := s.Channel(channelSettings.ID)
 		if err != nil {
@@ -147,11 +162,20 @@ func ReactionRoleCheck(s *discordgo.Session, e *discordgo.MessageReactionAdd) {
 		}
 
 		// Add a request to user
-		newReq := db.Request{Active: true, Timestamp: time.Now()}
-		_, ok := userData.RoleRequests[e.ChannelID]
-		if !ok {
-			userData.RoleRequests[e.ChannelID] = make(map[string]db.Request)
+		newReq := db.Request{Active: true, Timestamp: time.Now(), VerificationID: msg.ID}
+
+		// Check for nil maps
+		if userData.RoleRequests == nil {
+			chanMap := make(map[string]map[string]db.Request)
+			chanMap[e.ChannelID] = make(map[string]db.Request)
+			userData.RoleRequests = chanMap
 		}
+		if userData.RoleRequests[e.ChannelID] == nil {
+			reqMap := make(map[string]db.Request)
+			userData.RoleRequests[e.ChannelID] = reqMap
+		}
+
+		// Update user data
 		userData.RoleRequests[e.ChannelID][role.ID] = newReq
 		err = db.UpdateUserData(userData)
 		if err != nil {

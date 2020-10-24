@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 
 	"regexp"
 
@@ -79,7 +78,8 @@ func AddHandler(ctx *exrouter.Context) {
 	}
 
 	// Get reaction name
-	emojiArg := ctx.Args.Get(3)
+	emojiArgRaw := ctx.Args.Get(3)
+	emojiArg := re.ReplaceAllString(emojiArgRaw, "")
 	if emojiArg == "" {
 		replyDel(ctx, "Make sure the emote you want to bind is the third argument after this command.", 15)
 		return
@@ -88,7 +88,8 @@ func AddHandler(ctx *exrouter.Context) {
 	// Set role settings
 	var role db.Role
 	role.ID = gldRole.ID
-	role.Reaction = emojiArg
+	role.Reaction = emojiArgRaw
+	role.ReactionFixed = emojiArg
 	role.Name = gldRole.Name
 	role.Verification = verArg
 
@@ -114,7 +115,11 @@ func AddHandler(ctx *exrouter.Context) {
 	}
 
 	// Add reaction
-	ctx.Ses.MessageReactionAdd(ctx.Msg.ChannelID, channel.MessageID, emojiArg)
+	err = ctx.Ses.MessageReactionAdd(ctx.Msg.ChannelID, channel.MessageID, emojiArg)
+	if err != nil {
+		replyDel(ctx, fmt.Sprintf("Failed to add a reaction.\n```%v```", err), 5)
+		return
+	}
 
 	replyDel(ctx, fmt.Sprintf("Done! `%v` is now a Reactive Role in this channel.", role.Name), 15)
 }
@@ -286,6 +291,9 @@ func SetupHandler(ctx *exrouter.Context) {
 }
 
 func updateReactiveMsg(ctx *exrouter.Context, roles map[string]*db.Role, cid string, mid string) error {
+	// Clear message reactions
+	ctx.Ses.MessageReactionsRemoveAll(cid, mid)
+
 	// Delete message if there are no roles
 	if len(roles) == 0 {
 		_, err := ctx.Ses.ChannelMessageEdit(cid, mid, "There are no Reactive Roles in this channel. You can delete this message.")
@@ -293,7 +301,7 @@ func updateReactiveMsg(ctx *exrouter.Context, roles map[string]*db.Role, cid str
 	}
 
 	// Compile new message
-	var newMsg string = "Available Reactive roles:\n"
+	var newMsg string = fmt.Sprintf("%s\n", config.ReactiveMsgHeader)
 
 	var i int
 	for _, r := range roles {
@@ -303,6 +311,9 @@ func updateReactiveMsg(ctx *exrouter.Context, roles map[string]*db.Role, cid str
 			newMsg = newMsg + "\n"
 		}
 		i++
+
+		// Add reaction
+		ctx.Ses.MessageReactionAdd(cid, mid, r.ReactionFixed)
 	}
 
 	// Edit the message
@@ -339,13 +350,4 @@ func sliceContains(slice []string, val string) bool {
 		}
 	}
 	return false
-}
-
-func replyDel(ctx *exrouter.Context, msg string, timer time.Duration) error {
-	newMsg, err := ctx.Reply(msg)
-	defer func() {
-		time.Sleep(time.Second * timer)
-		ctx.Ses.ChannelMessageDelete(ctx.Msg.ChannelID, newMsg.ID)
-	}()
-	return err
 }

@@ -67,6 +67,8 @@ func main() {
 		r.On("setup", (handlers.SetupHandler)).Desc("Setup Reactive Roles.")
 		r.On("add", (handlers.AddHandler)).Desc("Add a role to the RR list.")
 		r.On("remove", (handlers.RemoveHandler)).Desc("Remove a role from the RR list.")
+		r.On("sban", (handlers.SoftBanHandler)).Desc("Soft ban a user.")
+		r.On("sunban", (handlers.SoftUnbanHandler)).Desc("Remove a soft ban.")
 	})
 
 	// Help command

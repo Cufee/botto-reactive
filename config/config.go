@@ -7,9 +7,12 @@ const PermsCode int = 67628097
 var VerTypes []string = []string{"auto", "manual"}
 
 // RemoveReactions used to check if user reactions need to be removed on Reactive messaged
-const RemoveReactions bool = false
+const RemoveReactions bool = true
 
 // Emojis for verification
+
+// ReactiveMsgHeader - Header for all reactive messages generated
+const ReactiveMsgHeader string = "React for a role!"
 
 // ApproveReaction - Approve verification request reaction
 const ApproveReaction string = "approve:769004759259545610"

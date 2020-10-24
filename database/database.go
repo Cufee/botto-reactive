@@ -18,6 +18,13 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Check all buckets
+	db.Update(func(tx *bolt.Tx) error {
+		tx.CreateBucketIfNotExists([]byte("guilds"))
+		tx.CreateBucketIfNotExists([]byte("users"))
+		tx.CreateBucketIfNotExists([]byte("ver_messages"))
+		return nil
+	})
 	// Closing DB in main.go defer
 }
 
@@ -25,18 +32,15 @@ func init() {
 func GetGuildSettings(gid string) (gs GuildSettings, err error) {
 	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("guilds"))
-		if b == nil {
-			if b, err = addBucket("guilds"); err != nil {
-				return err
-			}
-		}
 		// Decode settings
 		v := b.Get([]byte(gid))
 		if v == nil {
 			// Insert new doc
 			gs.ID = gid
 			gs.EnabledChannels = make(map[string]ReactiveChannel)
-			return UpdateGuildSettings(gs)
+			// Starting a routine due to mutex lock
+			go UpdateGuildSettings(gs)
+			return nil
 		}
 		return json.Unmarshal(v, &gs)
 	})
@@ -46,12 +50,12 @@ func GetGuildSettings(gid string) (gs GuildSettings, err error) {
 // UpdateGuildSettings - Update guild setting in DB
 func UpdateGuildSettings(gs GuildSettings) (err error) {
 	err = db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists([]byte("guilds"))
+		b := tx.Bucket([]byte("guilds"))
+		// Encode settings and update db
+		bts, err := json.Marshal(gs)
 		if err != nil {
 			return err
 		}
-		// Encode settings and update db
-		bts, err := json.Marshal(gs)
 		return b.Put([]byte([]byte(gs.ID)), bts)
 	})
 	return err
@@ -61,11 +65,6 @@ func UpdateGuildSettings(gs GuildSettings) (err error) {
 func GetVerificationMsg(mid string) (vmsg VerificationMessage, err error) {
 	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("ver_messages"))
-		if b == nil {
-			if b, err = addBucket("users"); err != nil {
-				return err
-			}
-		}
 		// Decode settings
 		v := b.Get([]byte(mid))
 		if v == nil {
@@ -79,10 +78,7 @@ func GetVerificationMsg(mid string) (vmsg VerificationMessage, err error) {
 // AddVerificationMsg - Add verification message details
 func AddVerificationMsg(vmsg VerificationMessage) error {
 	err := db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists([]byte("ver_messages"))
-		if err != nil {
-			return err
-		}
+		b := tx.Bucket([]byte("ver_messages"))
 		// Encode settings and update db
 		bts, err := json.Marshal(vmsg)
 		if err != nil {
@@ -97,9 +93,6 @@ func AddVerificationMsg(vmsg VerificationMessage) error {
 func DelVerificationMsg(vmsg VerificationMessage) error {
 	err := db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("ver_messages"))
-		if b == nil {
-			return fmt.Errorf("bucket not found")
-		}
 		return b.Delete([]byte([]byte(vmsg.ID)))
 	})
 	return err
@@ -109,19 +102,13 @@ func DelVerificationMsg(vmsg VerificationMessage) error {
 func GetUserData(uid string) (user User, err error) {
 	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("users"))
-		if b == nil {
-			if b, err = addBucket("users"); err != nil {
-				return err
-			}
-		}
 		// Decode settings
 		v := b.Get([]byte(uid))
 		if v == nil {
 			// Add new user
 			user := User{ID: uid, RoleRequests: make(map[string]map[string]Request)}
-			if err := UpdateUserData(user); err != nil {
-				return err
-			}
+			// Starting a routine due to mutex lock
+			go UpdateUserData(user)
 			return nil
 		}
 		return json.Unmarshal(v, &user)
@@ -133,11 +120,6 @@ func GetUserData(uid string) (user User, err error) {
 func UpdateUserData(user User) (err error) {
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("users"))
-		if b == nil {
-			if b, err = addBucket("users"); err != nil {
-				return err
-			}
-		}
 		// Encode settings and update db
 		bts, err := json.Marshal(user)
 		if err != nil {
@@ -157,13 +139,6 @@ func CompleteUserRequest(uid string, cid string, roleID string) error {
 	}
 	delete(userData.RoleRequests[cid], roleID)
 	return UpdateUserData(userData)
-}
-
-func addBucket(name string) (b *bolt.Bucket, err error) {
-	return b, db.Update(func(tx *bolt.Tx) error {
-		b, err = tx.CreateBucket([]byte(name))
-		return err
-	})
 }
 
 // CloseDB - Close DB connection

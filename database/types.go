@@ -20,9 +20,10 @@ type ReactiveChannel struct {
 
 // Role - Role record
 type Role struct {
-	ID       string
-	Reaction string
-	Name     string
+	ID            string
+	Reaction      string
+	ReactionFixed string
+	Name          string
 	// Verification type auto / manual
 	Verification string
 }
@@ -32,13 +33,14 @@ type User struct {
 	ID string
 	// map[cahnnelID][roleID]UerReaction
 	RoleRequests map[string]map[string]Request
-	IsSoftBanned bool
+	IsSoftBanned map[string]bool
 }
 
 // Request - User reaction obj
 type Request struct {
-	Active    bool
-	Timestamp time.Time
+	Active         bool
+	VerificationID string
+	Timestamp      time.Time
 }
 
 // VerificationMessage - message sent to verification channel struct
