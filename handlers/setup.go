@@ -15,6 +15,12 @@ import (
 
 // AddHandler - just a test
 func AddHandler(ctx *exrouter.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Recovered in f", r)
+			replyDel(ctx, "Something broke...", 15)
+		}
+	}()
 	// Delete messae
 	ctx.Ses.ChannelMessageDelete(ctx.Msg.ChannelID, ctx.Msg.ID)
 
@@ -126,6 +132,12 @@ func AddHandler(ctx *exrouter.Context) {
 
 // RemoveHandler - just a test
 func RemoveHandler(ctx *exrouter.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Recovered in f", r)
+			replyDel(ctx, "Something broke...", 15)
+		}
+	}()
 	// Delete messae
 	ctx.Ses.ChannelMessageDelete(ctx.Msg.ChannelID, ctx.Msg.ID)
 
@@ -195,6 +207,13 @@ func RemoveHandler(ctx *exrouter.Context) {
 
 // SetupHandler - just a test
 func SetupHandler(ctx *exrouter.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Recovered in f", r)
+			replyDel(ctx, "Something broke...", 15)
+		}
+	}()
+
 	// Check bot perms
 	if ok := permsCheck(ctx, ctx.Msg.ChannelID); !ok {
 		replyDel(ctx, "I do not have proper perms in this channel for Reactive Roles to work.", 15)
