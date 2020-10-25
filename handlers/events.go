@@ -18,6 +18,17 @@ func ReactionRoleCheck(s *discordgo.Session, e *discordgo.MessageReactionAdd) {
 		return
 	}
 
+	// Get request data
+	reqMsg, err := s.ChannelMessage(e.ChannelID, e.MessageID)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	if reqMsg.Author.ID != s.State.User.ID {
+		return
+	}
+
 	// Get guild settings
 	guildSettings, err := db.GetGuildSettings(e.GuildID)
 	if err != nil {
@@ -201,6 +212,22 @@ func VerificationReaction(s *discordgo.Session, e *discordgo.MessageReactionAdd)
 		return
 	}
 
+	if !strings.Contains(config.ApproveReaction, e.Emoji.APIName()) || !strings.Contains(config.DenyReaction, e.Emoji.APIName()) {
+		// Ignore all other reactions
+		return
+	}
+
+	// Get request data
+	reqMsg, err := s.ChannelMessage(e.ChannelID, e.MessageID)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	if reqMsg.Author.ID != s.State.User.ID {
+		return
+	}
+
 	perms, err := s.UserChannelPermissions(e.UserID, e.ChannelID)
 	if err != nil {
 		eventReplyDel(s, e.ChannelID, fmt.Sprintf("Failed to check your perms.\n```%v```", err), 5)
@@ -220,13 +247,6 @@ func VerificationReaction(s *discordgo.Session, e *discordgo.MessageReactionAdd)
 
 	// Check if this is the verification channel
 	if guildSettings.VerificationChan != e.ChannelID {
-		return
-	}
-
-	// Get request data
-	reqMsg, err := s.ChannelMessage(e.ChannelID, e.MessageID)
-	if err != nil {
-		log.Print(err)
 		return
 	}
 
